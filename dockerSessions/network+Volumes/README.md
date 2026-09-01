@@ -18,7 +18,17 @@ manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~$ docker run -it -d -p 80:80 --name a
 15bb19a552f801abff1b6832ece2a0ff32bf440ff8cb7e40ab192115ec7d0b2c
 ```
 
-----------
-
 ### Browser Screenshot
 ![browser_ss](./assets/Screenshot%20from%202026-09-01%2011-56-09.png)
+
+
+## Bind-Mounting html to Nginx
+
+### Terminal CMDs
+![terminal_ss](./assets/bash.png)
+
+### Original HTML served through nginx
+![_](./assets/original_html.png)
+
+### Updated HTML
+![_](./assets/updated_html.png)
