@@ -64,9 +64,9 @@ A comprehensive platform for exploring and experiencing Sikkim's monasteries dig
    Create `.env` file in server directory:
 
    ```env
-   DB_URL=mongodb+srv://manav24bcs10126_db_user:Mannu%40scaler2028@monastery360.ucn8wkk.mongodb.net/?retryWrites=true&w=majority&appName=Monastery360
-   CLOUDINARY_URL=cloudinary://231494826523796:Z1EWiqOiNb3bw5-A8bjhJqn409g@diupsjs3r
-   CLIENT_URL=https://monastery360-theta.vercel.app
+   DB_URL=
+   CLOUDINARY_URL=
+   CLIENT_URL=
    ```
 
 3. **Install Dependencies**
