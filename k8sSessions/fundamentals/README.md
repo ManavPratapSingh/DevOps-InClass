@@ -14,5 +14,9 @@ spec:
         - containerPort: 80
 ```
 
+### Stages of a pod init:
+![_](./assets/3%20stages%20of%20pods.png)
+
+
 ### Running Website
 ![_](./assets/nginx%20from%20k8s%20pod.png)
