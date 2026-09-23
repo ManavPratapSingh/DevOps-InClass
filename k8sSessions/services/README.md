@@ -1,341 +1,283 @@
-# Session 11: Kubernetes Networking, Services & CoreDNS Architecture
+# Session 12: Ingress Controllers, ConfigMaps, Secrets & TLS Security
 
 **Author:** Manav Pratap Singh  
 **Course:** SST DevOps & Cloud [SWE]  
-**Session:** 11 - Kubernetes Networking & Services  
-**Repository:** devops-heros / session11-k8s  
+**Session:** 12 - Ingress, ConfigMaps & Secrets  
+**Repository:** devops-heros / session12-k8s  
 
 ---
 
-## Task 1: Kubernetes Port Architecture & Clarification Drill
+## Task 1: Non-Sensitive Configuration Decoupling via ConfigMaps
 
-**Description:** Document the packet flow and routing boundaries across the four distinct port definitions in Kubernetes.
+**Description:** Decouple environment-specific runtime configurations from container images by storing them in a declarative `ConfigMap`.
 
 **Commands to Run:**
 ```bash
-kubectl explain pod.spec.containers.ports.containerPort
-kubectl explain service.spec.ports
+cd session-12-ingress-configmaps-secrets/
+
+kubectl apply -f 01-configmap/app-config.yaml
+kubectl get configmap yatri-app-config
+kubectl describe configmap yatri-app-config
+kubectl get configmap yatri-app-config -o jsonpath='{.data.ENVIRONMENT}' && echo ""
 ```
 
 **Expected Terminal Output:**
 
-**Architectural Flow Diagram:**
+**Screenshot:**
+![ConfigMap Inspection](./screenshots/01-configmap-describe.png)
+
+---
+
+## Task 2: ConfigMap Live Update & Pod Immobility Verification Drill
+
+**Description:** Demonstrate that updating a `ConfigMap` does **not** retroactively update environment variables inside active running containers, and use `kubectl rollout restart` to trigger a zero-downtime rolling update.
+
+**Commands to Run:**
+```bash
+kubectl patch configmap yatri-app-config --type merge -p '{"data":{"ENVIRONMENT":"staging"}}'
+kubectl exec -it deploy/yatri-backend -- env | grep ENVIRONMENT
+kubectl rollout restart deployment/yatri-backend
+kubectl rollout status deployment/yatri-backend
+kubectl exec -it deploy/yatri-backend -- env | grep ENVIRONMENT
+kubectl patch configmap yatri-app-config --type merge -p '{"data":{"ENVIRONMENT":"production"}}'
+kubectl rollout restart deployment/yatri-backend
 ```
-External Client / Host Browser
-             │
-             ▼
-      [ nodePort: 30080 ]   <-- Host Node IP (30000-32767)
-             │
-             ▼
-        [ port: 8080 ]      <-- Internal Service Virtual IP (ClusterIP)
-             │
-             ▼
-      [ targetPort: 80 ]    <-- Target Pod Network Interface
-             │
-             ▼
-   [ containerPort: 80 ]    <-- Container Process / Nginx Listen Socket
+
+**Expected Terminal Output:**
+
+**Screenshot:**
+![ConfigMap Patch and Rollout Restart](./screenshots/02-configmap-live-update.png)
+
+---
+
+## Task 3: Sensitive Data Isolation via Kubernetes Secrets & Base64 Mechanics
+
+**Description:** Implement credential isolation using an `Opaque` Kubernetes `Secret`, illustrating that Base64 is merely an encoding scheme (not encryption) that can be decoded on the CLI.
+
+**Commands to Run:**
+```bash
+kubectl apply -f 02-secret/db-secret.yaml
+kubectl get secret yatri-db-secret
+kubectl describe secret yatri-db-secret
+kubectl get secret yatri-db-secret -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 --decode && echo ""
+kubectl get secret yatri-db-secret -o jsonpath='{.data.POSTGRES_USER}' | base64 --decode && echo ""
+```
+
+**Expected Terminal Output:**
+
+**Screenshot:**
+![Kubernetes Secret Base64 Decoding](./screenshots/03-secret-base64-decode.png)
+
+---
+
+## Task 4: The Trailing Newline Secret Gotcha & Authentication Failure Analysis
+
+**Description:** Analyze the common authentication bug where encoding with standard `echo` appends an invisible ASCII newline (`\n` / `0x0A`), corrupting passwords sent to backend databases.
+
+**Commands to Run:**
+```bash
+echo "secretpassword" | xxd
+echo "secretpassword" | base64
+
+echo -n "secretpassword" | xxd
+echo -n "secretpassword" | base64
+```
+
+**Expected Terminal Output:**
+
+**Screenshot:**
+![Trailing Newline Hexdump Comparison](./screenshots/04-trailing-newline-bug.png)
+
+---
+
+## Task 5: Enterprise Secret Management & Pipeline Integration Analysis
+
+**Description:** Research and document how real-world enterprise architectures solve Kubernetes secret management securely without committing Base64 strings to source control.
+
+**Architecture Breakdown:**
+1. **The Vulnerability:** Storing Base64-encoded `Secret` YAML manifests in Git repositories violates security compliance because Git revision history preserves secrets permanently.
+2. **External Secret Operators:** In enterprise clusters, **External Secrets Operator (ESO)** or **HashiCorp Vault Agent Injector** synchronizes credentials directly from cloud vaults (AWS Secrets Manager, Azure Key Vault, HashiCorp Vault) into ephemeral Kubernetes Secrets.
+3. **CI/CD Integration:** Pipelines inject secrets dynamically during runtime deployment steps using masked variables (e.g. GitHub Secrets or Azure DevOps Variable Groups).
+
+```
++------------------------+      +--------------------------+      +-----------------------+
+|  AWS Secrets Manager / | ───► | External Secrets Operator| ───► |  Kubernetes Secret    | ───► Pod
+|  HashiCorp Vault       |      | (Custom Resource Sync)   |      |  (In-Memory / etcd)   |
++------------------------+      +--------------------------+      +-----------------------+
 ```
 
 **Screenshot:**
-![Ports Architecture Flowchart](./screenshots/01-ports-architecture.png)
+![Enterprise Secret Architecture Diagram](./screenshots/05-enterprise-secrets.png)
 
 ---
 
-## Task 2: Type 1 Service — ClusterIP (Default Internal Networking)
+## Task 6: Combined ConfigMap and Secret Pod Injection Architecture
 
-**Description:** Deploy a 3-replica backend, expose it via a default `ClusterIP` service, inspect endpoint allocations, and verify access from an ephemeral client pod using service name and FQDN.
+**Description:** Deploy a backend pod that simultaneously consumes configuration from both a `ConfigMap` and a `Secret`, verifying that both sources merge cleanly into the container's environment.
 
 **Commands to Run:**
 ```bash
-cd session-11-kubernetes-services/01-clusterip/
-
-kubectl apply -f app-deployment.yaml
-kubectl apply -f service.yaml
-kubectl get pods -l app=web-clusterip -o wide
-kubectl get svc,endpoints web-service-clusterip
-
-kubectl apply -f client-pod.yaml
-kubectl wait --for=condition=ready pod/curl-client --timeout=30s
-kubectl exec -it curl-client -- curl -s http://web-service-clusterip:8080 | grep -i "<title>"
-kubectl exec -it curl-client -- curl -s http://web-service-clusterip.default.svc.cluster.local:8080 | grep -i "<title>"
+kubectl apply -f 04-full-demo/configmap.yaml
+kubectl apply -f 04-full-demo/secret.yaml
+kubectl apply -f 04-full-demo/backend.yaml
+kubectl rollout status deployment/yatri-backend
+kubectl exec -it deploy/yatri-backend -- env | grep -E "ENVIRONMENT|LOG_LEVEL|POSTGRES|DEFAULT_CURRENCY"
 ```
 
 **Expected Terminal Output:**
 
-**Screenshots:**
-![ClusterIP Service & Endpoints](./screenshots/02-clusterip-verification.png)
-![ClusterIP In-Cluster Curl Resolution](./screenshots/02-clusterip-curl-exec.png)
+**Screenshot:**
+![Merged Environment Injection](./screenshots/06-combined-env-injection.png)
 
 ---
 
-## Task 3: Type 2 Service — NodePort (Host-Level External Ingress)
+## Task 7: Architectural Comparative Study — Ingress Resource vs. Ingress Controller
 
-**Description:** Expose an application externally on static node port `30080` across all cluster nodes, and test external HTTP ingress using the Minikube node IP.
+**Description:** Provide a conceptual and technical breakdown of the division of responsibilities between an `Ingress` rule manifest and an `Ingress Controller`.
 
-**Commands to Run:**
-```bash
-cd session-11-kubernetes-services/02-nodeport/
-
-kubectl apply -f app-deployment.yaml
-kubectl apply -f service.yaml
-kubectl get svc web-service-nodeport
-MINIKUBE_IP=$(minikube ip)
-curl -I http://${MINIKUBE_IP}:30080
-minikube service web-service-nodeport --url
-```
-
-**Expected Terminal Output:**
-
-**Screenshots:**
-![NodePort Service Definition](./screenshots/03-nodeport-service.png)
-![NodePort External Access](./screenshots/03-nodeport-curl.png)
-
----
-
-## Task 4: Type 3 Service — LoadBalancer (Cloud-Native Ingress Simulation)
-
-**Description:** Deploy a workload exposed through `type: LoadBalancer`, simulate cloud external IP provisioning using `minikube tunnel`, and verify access on standard HTTP port `80`.
-
-**Commands to Run:**
-```bash
-cd session-11-kubernetes-services/03-loadbalancer/
-
-kubectl apply -f app-deployment.yaml
-kubectl apply -f service.yaml
-kubectl get svc web-service-loadbalancer
-EXTERNAL_IP=$(kubectl get svc web-service-loadbalancer -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-curl -s http://${EXTERNAL_IP}:80 | grep -i "<title>"
-```
-
-**Expected Terminal Output:**
-
-**Screenshots:**
-![LoadBalancer Allocated External IP](./screenshots/04-loadbalancer-external-ip.png)
-![LoadBalancer Port 80 HTTP Access](./screenshots/04-loadbalancer-curl.png)
-
----
-
-## Task 5: Type 4 Service — ExternalName (CoreDNS CNAME Alias Redirection)
-
-**Description:** Create an `ExternalName` service aliasing `api.github.com` via internal CoreDNS, verifying that no ClusterIP or endpoints exist and confirming CNAME resolution via `nslookup`.
-
-**Commands to Run:**
-```bash
-cd session-11-kubernetes-services/04-externalname/
-
-kubectl apply -f service.yaml
-kubectl apply -f client-pod.yaml
-kubectl wait --for=condition=ready pod/dns-test-client --timeout=30s
-kubectl get svc external-database-service
-kubectl exec -it dns-test-client -- nslookup external-database-service
-```
-
-**Expected Terminal Output:**
-
-**Screenshots:**
-![ExternalName Service Metadata](./screenshots/05-externalname-service.png)
-![ExternalName CNAME DNS Resolution](./screenshots/05-externalname-nslookup.png)
-
----
-
-## Task 6: Type 5 Service — Headless Service (`clusterIP: None` & Stateful Workloads)
-
-**Description:** Deploy a 3-replica StatefulSet coupled with a Headless Service (`clusterIP: None`), demonstrate multi-A record CoreDNS resolution, and query an individual ordinal pod hostname.
-
-**Commands to Run:**
-```bash
-cd session-11-kubernetes-services/05-headless/
-
-kubectl apply -f service.yaml
-kubectl apply -f app-statefulset.yaml
-kubectl apply -f client-pod.yaml
-kubectl rollout status statefulset/web-stateful --timeout=60s
-kubectl get svc web-service-headless
-kubectl exec -it headless-dns-client -- nslookup web-service-headless
-kubectl exec -it headless-dns-client -- curl -s http://web-stateful-0.web-service-headless:80 | grep -i "<title>"
-```
-
-**Expected Terminal Output:**
-
-**Screenshots:**
-![Headless Multi-A Record DNS Resolution](./screenshots/06-headless-service-nslookup.png)
-![Direct Stateful Pod FQDN Access](./screenshots/06-headless-ordinal-curl.png)
-
----
-
-## Task 7: Services Without Selectors (Manual Endpoints Mapping)
-
-**Description:** Define a Service without label selectors and manually construct a companion `Endpoints` manifest pointing to an external static IP address (`192.168.1.150:3306`).
-
-**Commands to Run:**
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Service
-metadata:
-  name: external-legacy-db
-spec:
-  ports:
-    - protocol: TCP
-      port: 3306
-      targetPort: 3306
-EOF
-
-kubectl get endpoints external-legacy-db
-
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: external-legacy-db
-subsets:
-  - addresses:
-      - ip: 192.168.1.150
-    ports:
-      - port: 3306
-EOF
-
-kubectl get endpoints external-legacy-db
-```
-
-**Expected Terminal Output:**
-
-**Screenshots:**
-![Selectorless Service with Empty Endpoints](./screenshots/07-selectorless-service.png)
-![Manually Bound Endpoints](./screenshots/07-selectorless-manual-endpoints.png)
-
----
-
-## Task 8: FQDN & CoreDNS Deep Dive Architecture Analysis
-
-**Description:** Audit CoreDNS pod status, inspect container `/etc/resolv.conf` search paths and `ndots:5`, and document the operational latency impact of `ndots:5` during external domain queries.
-
-**Commands to Run:**
-```bash
-kubectl get pods -n kube-system -l k8s-app=kube-dns -o wide
-kubectl exec -it curl-client -- cat /etc/resolv.conf
-kubectl exec -it curl-client -- nslookup web-service-clusterip
-kubectl exec -it curl-client -- nslookup api.github.com
-```
-
-**Expected Terminal Output:**
-
-**Technical Explanation of `ndots:5` Latency:**
-Any query containing fewer than 5 dots (e.g. `api.github.com` has 2 dots) forces the resolver to append each search path sequentially (`api.github.com.default.svc.cluster.local`, `api.github.com.svc.cluster.local`, `api.github.com.cluster.local`) resulting in 3 consecutive `NXDOMAIN` round trips before querying upstream DNS.
-
-**Screenshots:**
-![Container Resolv Conf and ndots:5](./screenshots/08-resolv-conf-ndots.png)
-![CoreDNS Query Traversal](./screenshots/08-coredns-resolution.png)
-
----
-
-## Task 9: Pod Identity & Lifecycle Invariance Drill — Deployment (Stateless) vs. StatefulSet (Stateful)
-
-**Description:** Concurrently deploy a stateless Deployment and a stateful StatefulSet, delete an active pod from each controller, and contrast ephemeral random hashes against deterministic ordinal recreation (`web-stateful-0`).
-
-**Commands to Run:**
-```bash
-DEPLOY_POD=$(kubectl get pods -l app=web-clusterip -o jsonpath='{.items[0].metadata.name}')
-echo "Deleting Stateless Pod: ${DEPLOY_POD}"
-kubectl delete pod "${DEPLOY_POD}"
-kubectl get pods -l app=web-clusterip
-
-echo "Deleting Stateful Pod: web-stateful-0"
-kubectl delete pod web-stateful-0
-kubectl get pods -l app=web-headless
-```
-
-**Expected Terminal Output:**
-
-**Screenshots:**
-![Stateless vs Stateful Pod Naming](./screenshots/09-pod-naming-comparison.png)
-![Pod Re-creation Invariance Comparison](./screenshots/09-pod-deletion-and-recreation.png)
-
----
-
-## Task 10: Master Architectural Matrix — Deployment vs. StatefulSet vs. DaemonSet
-
-**Description:** Provide a production-grade comparison matrix contrasting Deployments, StatefulSets, and DaemonSets across operational primitives.
-
-| Architectural Metric | Deployment | StatefulSet | DaemonSet |
+| Component | Nature | Function | Examples |
 | :--- | :--- | :--- | :--- |
-| **Primary Workload Type** | Stateless microservices, Web APIs | Clustered databases, Distributed queues | Host infrastructure telemetry agents |
-| **Pod Naming Scheme** | Random hash (`<app>-<hash>-<rand>`) | Deterministic ordinal (`<name>-0, 1, 2`) | Host-bound hash (`<ds>-<rand>`) |
-| **Identity Persistence** | Ephemeral (disposable on death) | Invariant (hostname, volume stick) | Node-local lifetime |
-| **Startup / Teardown Order** | Unordered, parallel | Strictly sequential ($0 \rightarrow 1 \rightarrow 2$) | Parallel across all eligible nodes |
-| **Storage Mechanism** | Shared volume or emptyDir | PersistentVolume via `volumeClaimTemplates` | HostPath / node-local storage |
-| **Associated Service Type** | ClusterIP / NodePort / LoadBalancer | **Headless Service** (`clusterIP: None`) | None or local ClusterIP |
-| **Scaling Dynamics** | Arbitrary horizontal scaling | Ordered tail addition/removal | Automatic node join/drain scaling |
-| **Production Examples** | Nginx, Spring Boot, Node.js API | PostgreSQL HA, Kafka, MongoDB | Node Exporter, Fluentbit, Cilium |
+| **Ingress Resource** | Declarative API Object (YAML) | Defines Layer 7 routing rules, hostnames, paths, and TLS certificate references. Does not route traffic by itself. | `kind: Ingress` |
+| **Ingress Controller** | Active Daemon / Reverse Proxy | Monitors API Server for `Ingress` objects, dynamically compiles proxy configuration, and routes live HTTP/HTTPS packets. | NGINX Ingress, Traefik, Envoy, HAProxy |
 
 **Screenshot:**
-![Architectural Controller Comparison Matrix](./screenshots/10-architectural-matrix.png)
+![Ingress Resource vs Controller Breakdown](./screenshots/07-ingress-vs-controller.png)
 
 ---
 
-## Task 11: Production Cost Optimization & Service Selection Decision Tree
+## Task 8: NGINX Ingress Controller Activation & Lifecycle Verification
 
-**Description:** Synthesize the Service Selection Decision Tree and contrast the public cloud anti-pattern of redundant Load Balancers against a consolidated Ingress Controller architecture.
-
-**Cost Architecture Comparison:**
-```
-ANTI-PATTERN (Expensive: $25/mo per service):
-Microservice A ──► AWS NLB 1 ($25/mo) ──► ClusterIP A
-Microservice B ──► AWS NLB 2 ($25/mo) ──► ClusterIP B
-Microservice C ──► AWS NLB 3 ($25/mo) ──► ClusterIP C
-Total for 50 services = $1,250 / month
-
-BEST PRACTICE (Cost-Optimized: Single Entrypoint):
-Public Internet ──► 1 Unified AWS Load Balancer ($25/mo)
-                            │
-                            ▼
-                 [ NGINX Ingress Controller ]
-                 (Layer 7 Host & Path Routing)
-                    │            │            │
-                    ▼            ▼            ▼
-               ClusterIP A  ClusterIP B  ClusterIP C
-Total for 50 services = $25 / month (Savings: $1,225/mo)
-```
-
-**Decision Flowchart:**
-```
-Need external access outside cluster?
-├── NO ──► Need direct pod-to-pod discovery (Kafka/DB)?
-│           ├── YES ──► Use HEADLESS SERVICE (clusterIP: None)
-│           └── NO  ──► Use CLUSTERIP (Default)
-│
-└── YES ──► Connecting to an external 3rd-party domain (AWS RDS / Stripe)?
-            ├── YES ──► Use EXTERNALNAME
-            └── NO  ──► Are you on Public Cloud (AWS/GCP/Azure)?
-                         ├── YES (HTTP/HTTPS) ──► Expose 1 INGRESS via LOADBALANCER,
-                         │                        apps as internal CLUSTERIP
-                         ├── YES (TCP/UDP)    ──► Direct LOADBALANCER
-                         └── NO (On-Prem/Dev) ──► NODEPORT
-```
-
-**Screenshot:**
-![Decision Tree and Cost Breakdown](./screenshots/11-decision-tree-cost.png)
-
----
-
-## Task 12: Minikube Docker-Driver Port Binding & Tunnel Gotcha Analysis
-
-**Description:** Explain why `<Node-IP>:<NodePort>` fails on macOS/Windows/Linux when using Minikube with the Docker driver, and document `minikube service --url` and `minikube tunnel` workarounds.
-
-**Root Cause:**
-Minikube's Docker driver runs the control plane inside an isolated container bridge network (`docker0`). Host kernels cannot directly route packets to internal bridge IPs (`192.168.49.2`) without port forwarding or Layer 3 route injection.
+**Description:** Enable and verify the NGINX Ingress Controller daemon on Minikube, validating the pod lifecycle within the `ingress-nginx` namespace.
 
 **Commands to Run:**
 ```bash
-NODE_IP=$(minikube ip)
-curl --connect-timeout 2 http://${NODE_IP}:30080 || echo "Connection Failed as expected!"
-
-minikube service web-service-nodeport --url
-minikube tunnel
+minikube addons enable ingress
+kubectl get pods -n ingress-nginx
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
+kubectl get service -n ingress-nginx
 ```
 
 **Expected Terminal Output:**
 
-**Screenshots:**
-![Docker Bridge Port Isolation Failure](./screenshots/12-docker-bridge-failure.png)
-![Minikube Service URL Proxy](./screenshots/12-minikube-service-proxy.png)
+**Screenshot:**
+![NGINX Ingress Controller Activation](./screenshots/08-ingress-controller-activation.png)
+
+---
+
+## Task 9: Local DNS Resolution & System Hosts File Mapping
+
+**Description:** Configure host-level local DNS name resolution by binding the Minikube IP address to custom domain endpoints (`yatri.local`) inside `/etc/hosts`.
+
+**Commands to Run:**
+```bash
+MINIKUBE_IP=$(minikube ip)
+echo "Minikube IP: ${MINIKUBE_IP}"
+grep "yatri.local" /etc/hosts || echo "${MINIKUBE_IP}  yatri.local" | sudo tee -a /etc/hosts
+grep "yatri.local" /etc/hosts
+```
+
+**Expected Terminal Output:**
+
+**Screenshot:**
+![Local DNS /etc/hosts Configuration](./screenshots/09-etc-hosts-mapping.png)
+
+---
+
+## Task 10: Layer 7 Path-Based Routing Implementation
+
+**Description:** Implement path-based Layer 7 traffic routing using an Ingress resource, directing `/` to the frontend service and `/api/*` to the backend API service with URL rewriting annotations.
+
+**Commands to Run:**
+```bash
+kubectl apply -f 04-full-demo/frontend.yaml
+kubectl apply -f 04-full-demo/backend.yaml
+kubectl apply -f 04-full-demo/ingress.yaml
+kubectl get ingress yatri-ingress
+
+curl -s http://yatri.local/ | grep -i "<title>"
+curl -s http://yatri.local/api/
+```
+
+**Expected Terminal Output:**
+
+**Screenshot:**
+![Path-Based Ingress Routing Test](./screenshots/10-path-based-ingress.png)
+
+---
+
+## Task 11: Virtual Host-Based Routing (Subdomain Routing)
+
+**Description:** Route incoming HTTP requests based on virtual hostnames (`portal.campus.local` vs. `api.campus.local`) targeting the same cluster entry IP.
+
+**Commands to Run:**
+```bash
+MINIKUBE_IP=$(minikube ip)
+curl -s -H "Host: portal.campus.local" http://${MINIKUBE_IP}/ | grep -i "<title>"
+curl -s -H "Host: api.campus.local" http://${MINIKUBE_IP}/api/
+```
+
+**Expected Terminal Output:**
+
+**Screenshot:**
+![Virtual Host Subdomain Routing](./screenshots/11-virtual-host-ingress.png)
+
+---
+
+## Task 12: Hybrid Ingress Routing Architecture
+
+**Description:** Construct and validate an Ingress resource that merges both multi-tenant virtual host routing and path-based routing within a single manifest.
+
+**Commands to Run:**
+```bash
+kubectl apply -f 03-ingress/ingress-routes.yaml
+kubectl get ingress campus-ingress-hybrid
+kubectl describe ingress campus-ingress-hybrid
+```
+
+**Expected Terminal Output:**
+
+**Screenshot:**
+![Hybrid Ingress Routing Table](./screenshots/12-hybrid-ingress-describe.png)
+
+---
+
+## Task 13: Ingress TLS/HTTPS Termination & Secret Binding
+
+**Description:** Configure SSL/TLS termination on an Ingress by generating an RSA certificate pair using OpenSSL, creating a `kubernetes.io/tls` secret, and serving HTTPS over port `443`.
+
+**Commands to Run:**
+```bash
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj "/CN=campus.local/O=CampusDevOps"
+kubectl create secret tls campus-tls-cert --cert=tls.crt --key=tls.key
+kubectl get secret campus-tls-cert
+
+kubectl apply -f 03-ingress/path-based.yml
+INGRESS_IP=$(minikube ip)
+curl -k -v --resolve portal.campus.local:443:${INGRESS_IP} https://portal.campus.local/ 2>&1 | grep -E "Server certificate|HTTP/|SSL connection"
+```
+
+**Expected Terminal Output:**
+
+**Screenshot:**
+![HTTPS TLS Handshake Termination](./screenshots/13-tls-https-termination.png)
+
+---
+
+## Task 14: End-to-End Multi-Tier Microservice Integration & Automation Scripting
+
+**Description:** Execute the comprehensive full-lifecycle automation scripts (`run-demo.sh` and `cleanup.sh`), analyzing multi-document YAML manifests (`---`) and verifying complete infrastructure cleanup.
+
+**Commands to Run:**
+```bash
+cd session-12-ingress-configmaps-secrets/04-full-demo/
+bash run-demo.sh
+kubectl get configmap,secret,ingress,deploy,svc,pods -l app=yatri-app
+
+bash cleanup.sh
+kubectl get ingress yatri-ingress 2>&1 || echo "Ingress deleted successfully"
+```
+
+**Expected Terminal Output:**
+
+**Screenshot:**
+![Automated Multi-Tier Demo Script Execution](./screenshots/14-end-to-end-automation.png)
