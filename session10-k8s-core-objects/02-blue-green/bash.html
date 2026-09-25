@@ -1,0 +1,98 @@
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ \
+> kubectl apply -f deployment-blue.yaml && kubectl apply -f deployment-green.yaml 
+deployment.apps/app-blue created
+deployment.apps/app-green created
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ \
+> kubectl get pods -l app=myapp --show-labels
+NAME                        READY   STATUS    RESTARTS   AGE   LABELS
+app-blue-5c69d7785c-msbn2   1/1     Running   0          30s   app=myapp,pod-template-hash=5c69d7785c,slot=blue,version=v1
+app-blue-5c69d7785c-nwwzl   1/1     Running   0          30s   app=myapp,pod-template-hash=5c69d7785c,slot=blue,version=v1
+app-blue-5c69d7785c-vzhmz   1/1     Running   0          30s   app=myapp,pod-template-hash=5c69d7785c,slot=blue,version=v1
+app-green-84df7f978-4btq2   1/1     Running   0          30s   app=myapp,pod-template-hash=84df7f978,slot=green,version=v2
+app-green-84df7f978-5z757   1/1     Running   0          30s   app=myapp,pod-template-hash=84df7f978,slot=green,version=v2
+app-green-84df7f978-vw4g2   1/1     Running   0          30s   app=myapp,pod-template-hash=84df7f978,slot=green,version=v2
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ \kubectl apply -f service-blue.yaml 
+service/myapp-service created
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ curl http://$(minikube ip):30020
+<html><body style="background:#003566;color:#ffd60a;font-family:monospace;font-size:3em;text-align:center;padding-top:20vh">
+<p>BLUE ENVIRONMENT</p>
+<p style="font-size:0.5em">Version: v1 | Slot: BLUE (LIVE)</p>
+</body></html>
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ \
+> kubectl describe svc myapp-service | grep selector
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ \
+> kubectl describe svc myapp-service | grep Selector
+Selector:                 app=myapp,slot=blue
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ kubectl get endpoints myapp-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME            ENDPOINTS                                      AGE
+myapp-service   10.244.0.29:80,10.244.0.30:80,10.244.0.31:80   96s
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ kubectl apply -f service-green.yaml 
+service/myapp-service configured
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ curl http://$(minikube ip):30020
+<html><body style="background:#1b4332;color:#95d5b2;font-family:monospace;font-size:3em;text-align:center;padding-top:20vh">
+<p>GREEN ENVIRONMENT</p>
+<p style="font-size:0.5em">Version: v2 | Slot: GREEN (STANDBY -> PROMOTED)</p>
+</body></html>
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ kubectl get endpoints myapp-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME            ENDPOINTS                                      AGE
+myapp-service   10.244.0.32:80,10.244.0.33:80,10.244.0.34:80   3m12s
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ kubectl apply -f service-blue.yaml 
+service/myapp-service configured
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ curl http://$(minikube ip):30020
+<html><body style="background:#003566;color:#ffd60a;font-family:monospace;font-size:3em;text-align:center;padding-top:20vh">
+<p>BLUE ENVIRONMENT</p>
+<p style="font-size:0.5em">Version: v1 | Slot: BLUE (LIVE)</p>
+</body></html>
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ 
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ kubectl delete deployment app-blue
+deployment.apps "app-blue" deleted from default namespace
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ kubectl delete -f 02-blue-green/service-blue.yaml &&                                                    
+kubectl delete -f 02-blue-green/deployment-blue.yaml && 
+kubectl delete -f 02-blue-green/deployment-green.yaml
+error: the path "02-blue-green/service-blue.yaml" does not exist
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ \
+> kubectl delete -f deployment-blue.yaml && \
+> kubectl delete -f deployment-green.yaml && \
+> kubectl delete -f service-blue.yaml 
+Error from server (NotFound): error when deleting "deployment-blue.yaml": deployments.apps "app-blue" not found
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ kubectl get all
+NAME                            READY   STATUS    RESTARTS   AGE
+pod/app-green-84df7f978-4btq2   1/1     Running   0          7m57s
+pod/app-green-84df7f978-5z757   1/1     Running   0          7m57s
+pod/app-green-84df7f978-vw4g2   1/1     Running   0          7m57s
+
+NAME                    TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+service/kubernetes      ClusterIP   10.96.0.1       <none>        443/TCP        27m
+service/myapp-service   NodePort    10.101.79.110   <none>        80:30020/TCP   6m31s
+
+NAME                        READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/app-green   3/3     3            3           7m57s
+
+NAME                                  DESIRED   CURRENT   READY   AGE
+replicaset.apps/app-green-84df7f978   3         3         3       7m57s
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ kubectl delete deployment app-green
+deployment.apps "app-green" deleted from default namespace
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ kubectl get all
+NAME                    TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+service/kubernetes      ClusterIP   10.96.0.1       <none>        443/TCP        28m
+service/myapp-service   NodePort    10.101.79.110   <none>        80:30020/TCP   7m47s
+manav@manav-HP-Pavillion-Laptop-15-eh1xxx:~/Bash-Scripting/scaler/DevOps-InClass/session10-k8s-core-objects/02-blue-green$ kubectl delete svc/myapp-service
+service "myapp-service" deleted from default namespace
